@@ -54,10 +54,23 @@ namespace Microsoft.AspNet.SignalR.Hubs
                 throw new ArgumentException(Resources.Error_ArgumentNullOrEmpty, "connectionId");
             }
 
-            return new ConnectionIdProxy(Connection, 
-                                         Invoker, 
-                                         connectionId, 
-                                         HubName);
+            return new ConnectionIdProxy(Connection,
+                Invoker,
+                connectionId,
+                HubName);
+        }
+
+        public ConnectionIdProxyStatic ClientStatic(string connectionId)
+        {
+            if (String.IsNullOrEmpty(connectionId))
+            {
+                throw new ArgumentException(Resources.Error_ArgumentNullOrEmpty, "connectionId");
+            }
+
+            return new ConnectionIdProxyStatic(Connection,
+                Invoker,
+                connectionId,
+                HubName);
         }
 
         /// <summary>
@@ -73,11 +86,26 @@ namespace Microsoft.AspNet.SignalR.Hubs
             }
 
             return new MultipleSignalProxy(Connection,
-                                           Invoker,
-                                           connectionIds,
-                                           HubName,
-                                           PrefixHelper.HubConnectionIdPrefix,
-                                           ListHelper<string>.Empty);
+                Invoker,
+                connectionIds,
+                HubName,
+                PrefixHelper.HubConnectionIdPrefix,
+                ListHelper<string>.Empty);
+        }
+
+        public MultipleSignalProxyStatic ClientsStatic(IList<string> connectionIds)
+        {
+            if (connectionIds == null)
+            {
+                throw new ArgumentNullException("connectionIds");
+            }
+
+            return new MultipleSignalProxyStatic(Connection,
+                Invoker,
+                connectionIds,
+                HubName,
+                PrefixHelper.HubConnectionIdPrefix,
+                ListHelper<string>.Empty);
         }
 
         /// <summary>

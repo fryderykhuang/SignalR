@@ -14,7 +14,10 @@ namespace Microsoft.AspNet.SignalR.Hubs
         T AllExcept(params string[] excludeConnectionIds);
 
         T Client(string connectionId);
+        ConnectionIdProxyStatic ClientStatic(string connectionId);
+
         T Clients(IList<string> connectionIds);
+        MultipleSignalProxyStatic ClientsStatic(IList<string> connectionIds);
 
         T Group(string groupName, params string[] excludeConnectionIds);
         T Groups(IList<string> groupNames, params string[] excludeConnectionIds);

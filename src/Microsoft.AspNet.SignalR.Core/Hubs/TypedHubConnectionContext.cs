@@ -37,6 +37,16 @@ namespace Microsoft.AspNet.SignalR.Hubs
             return TypedClientBuilder<T>.Build(_dynamicContext.Clients(connectionIds));
         }
 
+        public MultipleSignalProxyStatic ClientsStatic(IList<string> connectionIds)
+        {
+            return _dynamicContext.ClientsStatic(connectionIds);
+        }
+
+        public ConnectionIdProxyStatic ClientStatic(string connectionId)
+        {
+            return _dynamicContext.Client(connectionId);
+        }
+
         public T Group(string groupName, params string[] excludeConnectionIds)
         {
             return TypedClientBuilder<T>.Build(_dynamicContext.Group(groupName, excludeConnectionIds));
