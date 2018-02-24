@@ -11,11 +11,13 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNet.SignalR.Hubs;
 using Microsoft.AspNet.SignalR.Json;
 using Microsoft.AspNet.SignalR.Messaging;
 using Microsoft.AspNet.SignalR.Tracing;
 using Microsoft.AspNet.SignalR.Transports;
 using Newtonsoft.Json;
+using Utf8Json.Internal;
 
 namespace Microsoft.AspNet.SignalR.Infrastructure
 {
@@ -213,9 +215,26 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
             }
             else
             {
-                messageBuffer = SerializeMessageValue(value);
+                messageBuffer = SerializeMessageValueFast(value);
             }
             return messageBuffer;
+        }
+
+        private ArraySegment<byte> SerializeMessageValueFast(object value)
+        {
+            ArraySegment<byte> result;
+//            if (value is ClientHubInvocation hubInvocation)
+//            {
+//                result = Utf8Json.JsonSerializer.SerializeUnsafe<ClientHubInvocation>(hubInvocation);
+//            }
+//            else
+//            {
+                result = Utf8Json.JsonSerializer.SerializeUnsafe<object>(value);
+//            }
+
+            var ret = new byte[result.Count];
+            Buffer.BlockCopy(result.Array, result.Offset, ret, 0, result.Count);
+            return new ArraySegment<byte>(ret, 0, result.Count);
         }
 
         private ArraySegment<byte> SerializeMessageValue(object value)

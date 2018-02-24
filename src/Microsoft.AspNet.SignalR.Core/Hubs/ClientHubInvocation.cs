@@ -3,6 +3,7 @@
 
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.Serialization;
 using Newtonsoft.Json;
 
 namespace Microsoft.AspNet.SignalR.Hubs
@@ -16,12 +17,14 @@ namespace Microsoft.AspNet.SignalR.Hubs
         /// The name of the hub that the method being invoked belongs to.
         /// </summary>
         [JsonProperty("H")]
+        [DataMember(Name = "H")]
         public string Hub { get; set; }
 
         /// <summary>
         /// The name of the client-side hub method be invoked.
         /// </summary>
         [JsonProperty("M")]
+        [DataMember(Name = "M")]
         public string Method { get; set; }
 
         /// <summary>
@@ -29,6 +32,7 @@ namespace Microsoft.AspNet.SignalR.Hubs
         /// </summary>
         [SuppressMessage("Microsoft.Performance", "CA1819:PropertiesShouldNotReturnArrays", Justification = "Type is used for serialization.")]
         [JsonProperty("A")]
+        [DataMember(Name = "A")]
         public object[] Args { get; set; }
 
         /// <summary>
@@ -37,6 +41,7 @@ namespace Microsoft.AspNet.SignalR.Hubs
         /// </summary>
         [SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly", Justification = "Type is used for serialization.")]
         [JsonProperty("S", NullValueHandling = NullValueHandling.Ignore)]
+        [DataMember(Name = "S")]
         public IDictionary<string, object> State { get; set; }
     }
 }
