@@ -116,7 +116,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.AspNet.SignalR.Se
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.AspNet.SignalR.Client.UWP.Tests", "tests\Microsoft.AspNet.SignalR.Client.UWP.Tests\Microsoft.AspNet.SignalR.Client.UWP.Tests.csproj", "{953E3B0C-32B1-4BAC-9CF2-6B816ECA0708}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.AspNet.SignalR.Core.NetCore", "src\Microsoft.AspNet.SignalR.Core.NetCore\Microsoft.AspNet.SignalR.Core.NetCore.csproj", "{C46496F9-3135-44C9-960A-F5015B285611}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.AspNet.SignalR.Core.NetCore", "src\Microsoft.AspNet.SignalR.Core.NetCore\Microsoft.AspNet.SignalR.Core.NetCore.csproj", "{C46496F9-3135-44C9-960A-F5015B285611}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.AspNet.SignalR.Client.NetCore", "src\Microsoft.AspNet.SignalR.Client.NetCore\Microsoft.AspNet.SignalR.Client.NetCore.csproj", "{73315A21-D0AE-4BB4-8A93-1AE91E42A230}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -778,6 +780,26 @@ Global
 		{C46496F9-3135-44C9-960A-F5015B285611}.Release|x64.Build.0 = Release|Any CPU
 		{C46496F9-3135-44C9-960A-F5015B285611}.Release|x86.ActiveCfg = Release|Any CPU
 		{C46496F9-3135-44C9-960A-F5015B285611}.Release|x86.Build.0 = Release|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Debug|ARM.ActiveCfg = Debug|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Debug|ARM.Build.0 = Debug|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Debug|Mixed Platforms.ActiveCfg = Debug|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Debug|Mixed Platforms.Build.0 = Debug|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Debug|x64.Build.0 = Debug|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Debug|x86.Build.0 = Debug|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Release|Any CPU.Build.0 = Release|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Release|ARM.ActiveCfg = Release|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Release|ARM.Build.0 = Release|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Release|Mixed Platforms.ActiveCfg = Release|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Release|Mixed Platforms.Build.0 = Release|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Release|x64.ActiveCfg = Release|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Release|x64.Build.0 = Release|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Release|x86.ActiveCfg = Release|Any CPU
+		{73315A21-D0AE-4BB4-8A93-1AE91E42A230}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

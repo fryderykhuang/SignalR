@@ -7,7 +7,7 @@ namespace Microsoft.AspNet.SignalR.Client.Transports.ServerSentEvents
 {
     public class SseEvent
     {
-        public SseEvent(EventType type,  data)
+        public SseEvent(EventType type, string data)
         {
             EventType = type;
             Data = data;

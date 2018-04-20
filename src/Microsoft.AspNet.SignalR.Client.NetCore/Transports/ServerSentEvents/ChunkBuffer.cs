@@ -3,25 +3,28 @@
 
 using System;
 using System.Buffers;
-using System.Runtime.CompilerServices;
+using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks.Dataflow;
 
 namespace Microsoft.AspNet.SignalR.Client.Transports.ServerSentEvents
 {
     public class ChunkBuffer
     {
-        private int _offset;
-        private readonly byte[] _buffer;
-        private readonly StringBuilder _lineBuilder;
+        private int _currentLength;
+        private static readonly ArrayPool<byte> BufferPool;
+        private byte[] _lineBuffer;
+        private Queue<ArraySegment<>>
+
+        static ChunkBuffer()
+        {
+            BufferPool = ArrayPool<byte>.Create();
+        }
 
         public ChunkBuffer()
         {
-            BufferPool = ArrayPool<byte>.Create();
-            _buffer = new StringBuilder();
-            _lineBuilder = new StringBuilder();
+            _lineBuffer = BufferPool.Rent(4000);
         }
-
-        private static ArrayPool<byte> BufferPool;
 
         public bool HasChunks
         {
@@ -33,23 +36,48 @@ namespace Microsoft.AspNet.SignalR.Client.Transports.ServerSentEvents
 
         public void Add(byte[] buffer, int length)
         {
-            Add(new ArraySegment<byte>(buffer, 0, length));
+//            Buffer.BlockCopy(buffer,  ; _buffer
+
+            _buffer.Append(Encoding.UTF8.GetString(buffer, 0, length));
         }
 
         public void Add(ArraySegment<byte> buffer, Action<ArraySegment<byte>> msgAction)
         {
             for (int i = buffer.Offset; i < buffer.Count; i++)
             {
-                if (buffer.Array[i] != (byte) '\r')
+                if (buffer.Array[i] != (byte)'\r')
                     continue;
-                if (buffer.Array[i + 1] != (byte) '\n')
+                if (buffer.Array[i + 1] != (byte)'\n')
                     continue;
 
+                var len = _currentLength + i;
+                if (len > _lineBuffer.Length)
+                {
+                    _lineBuffer = BufferPool.Rent(len);
+                }
+
+                var offset = i - buffer.Offset;
+                Buffer.BlockCopy(buffer.Array, buffer.Offset, _lineBuffer, _currentLength, offset);
+                _currentLength += offset;
+                msgAction(new ArraySegment<byte>(_lineBuffer, 0, _currentLength));
+
+
+                msgAction(new ArraySegment<byte>(buffer.Array, i+2, buffer.Count - offset - 2));
+
+                _currentLength = 0;
+
+
+
+                return;
             }
 
-            msgAction()
+            var len2 = _currentLength + buffer.Count;
+            if (len2 > _lineBuffer.Length)
+            {
+                _lineBuffer = BufferPool.Rent(len2);
+            }
 
-            _buffer.Append(Encoding.UTF8.GetString(buffer.Array, buffer.Offset, buffer.Count));
+            Buffer.BlockCopy(buffer.Array, buffer.Offset, _lineBuffer, _currentLength, buffer.Count);
         }
 
         public string ReadLine()
