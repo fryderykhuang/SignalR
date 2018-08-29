@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System.Threading.Tasks;
+using Microsoft.AspNet.SignalR.Core;
 
 namespace Microsoft.AspNet.SignalR.Hubs
 {
@@ -67,15 +68,6 @@ namespace Microsoft.AspNet.SignalR.Hubs
         public virtual Task OnReconnected()
         {
             return TaskAsyncHelper.Empty;
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
         }
     }
 }

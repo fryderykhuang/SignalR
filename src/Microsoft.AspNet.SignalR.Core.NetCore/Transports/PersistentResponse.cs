@@ -2,13 +2,18 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
+using System.Threading;
+using Microsoft.AspNet.SignalR.Hubs;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Json;
 using Microsoft.AspNet.SignalR.Messaging;
 using Newtonsoft.Json;
+using Utf8Json.Internal;
+using JsonWriter = Utf8Json.JsonWriter;
 
 namespace Microsoft.AspNet.SignalR.Transports
 {
@@ -18,10 +23,10 @@ namespace Microsoft.AspNet.SignalR.Transports
     public sealed class PersistentResponse : IJsonWritable
     {
         private readonly Func<Message, bool> _exclude;
-        private readonly Action<TextWriter> _writeCursor;
+        private readonly WriteCursorDelegate _writeCursor;
 
         public PersistentResponse()
-            : this(message => false, writer => { })
+            : this(message => false, (ref JsonWriter writer) => {})
         {
 
         }
@@ -31,7 +36,7 @@ namespace Microsoft.AspNet.SignalR.Transports
         /// </summary>
         /// <param name="exclude">A filter that determines whether messages should be written to the client.</param>
         /// <param name="writeCursor">The cursor writer.</param>
-        public PersistentResponse(Func<Message, bool> exclude, Action<TextWriter> writeCursor)
+        public PersistentResponse(Func<Message, bool> exclude, WriteCursorDelegate writeCursor)
         {
             _exclude = exclude;
             _writeCursor = writeCursor;
@@ -82,60 +87,82 @@ namespace Microsoft.AspNet.SignalR.Transports
         /// using Json.NET's JsonTextWriter to improve performance.
         /// </summary>
         /// <param name="writer">The <see cref="System.IO.TextWriter"/> that receives the JSON serialization.</param>
-        void IJsonWritable.WriteJson(TextWriter writer)
+        void IJsonWritable.WriteJson(ref Utf8Json.JsonWriter writer)
         {
-            if (writer == null)
-            {
-                throw new ArgumentNullException("writer");
-            }
+//            if (writer == null)
+//            {
+//                throw new ArgumentNullException("writer");
+//            }
 
-            var jsonWriter = new JsonTextWriter(writer);
-            jsonWriter.WriteStartObject();
+            writer.WriteBeginObject();
 
-            // REVIEW: Is this 100% correct?
-            writer.Write('"');
-            writer.Write("C");
-            writer.Write('"');
-            writer.Write(':');
-            writer.Write('"');
-            _writeCursor(writer);
-            writer.Write('"');
-            writer.Write(',');
+            writer.WritePropertyName("C");
+            writer.WriteRaw((byte) '"');
+            _writeCursor(ref writer);
+            writer.WriteRaw((byte) '"');
+
+//            // REVIEW: Is this 100% correct?
+//            writer.Write('"');
+//            writer.Write("C");
+//            writer.Write('"');
+//            writer.Write(':');
+//            writer.Write('"');
+//            _writeCursor(writer);
+//            writer.Write('"');
+//            writer.Write(',');
 
             if (Initializing)
             {
-                jsonWriter.WritePropertyName("S");
-                jsonWriter.WriteValue(1);
+                writer.WriteValueSeparator();
+                writer.WritePropertyName("S");
+                writer.WriteInt32(1);
             }
 
             if (Reconnect)
             {
-                jsonWriter.WritePropertyName("T");
-                jsonWriter.WriteValue(1);
+                writer.WriteValueSeparator();
+                writer.WritePropertyName("T");
+                writer.WriteInt32(1);
             }
 
             if (GroupsToken != null)
             {
-                jsonWriter.WritePropertyName("G");
-                jsonWriter.WriteValue(GroupsToken);
+                writer.WriteValueSeparator();
+                writer.WritePropertyName("G");
+                writer.WriteString(GroupsToken);
             }
 
             if (LongPollDelay.HasValue)
             {
-                jsonWriter.WritePropertyName("L");
-                jsonWriter.WriteValue(LongPollDelay.Value);
+                writer.WriteValueSeparator();
+                writer.WritePropertyName("L");
+                writer.WriteInt64(LongPollDelay.Value);
             }
 
-            jsonWriter.WritePropertyName("M");
-            jsonWriter.WriteStartArray();
+            writer.WriteValueSeparator();
+            writer.WritePropertyName("M");
+            writer.WriteBeginArray();
 
-            WriteMessages(writer, jsonWriter);
-
-            jsonWriter.WriteEndArray();
-            jsonWriter.WriteEndObject();
+            WriteMessages(ref writer);
+            writer.WriteEndArray();
+            writer.WriteEndObject();
         }
 
-        private void WriteMessages(TextWriter writer, JsonTextWriter jsonWriter)
+        public static unsafe void MemoryCopy(ref JsonWriter writer, byte[] src, int srcOffset, int srcCount)
+        {
+            writer.EnsureCapacity(srcCount);
+            var buffer = writer.GetBuffer().Array;
+            var offset = writer.CurrentOffset;
+            fixed (byte* numPtr1 = &buffer[offset])
+            fixed (byte* numPtr2 = &src[srcOffset])
+                Buffer.MemoryCopy((void*)numPtr2, (void*)numPtr1, (long)checked(buffer.Length - offset), (long)srcCount);
+
+            writer.AdvanceOffset(srcCount);
+        }
+
+        private readonly ArrayPool<byte> _bufferPool = ArrayPool<byte>.Shared;
+
+        private void WriteMessages(ref Utf8Json.JsonWriter writer)
         {
             if (Messages == null)
             {
@@ -143,7 +170,7 @@ namespace Microsoft.AspNet.SignalR.Transports
             }
 
             // If the writer is a binary writer then write to the underlying writer directly
-            var binaryWriter = writer as IBinaryWriter;
+//            var binaryWriter = writer as IBinaryWriter;
 
             bool first = true;
 
@@ -156,27 +183,51 @@ namespace Microsoft.AspNet.SignalR.Transports
 
                     if (!message.IsCommand && !_exclude(message))
                     {
-                        if (binaryWriter != null)
+//                        if (binaryWriter != null)
+//                        {
+                        if (!first)
                         {
-                            if (!first)
-                            {
-                                // We need to write the array separator manually
-                                writer.Write(',');
-                            }
-
-                            // If we can write binary then just write it
-                            binaryWriter.Write(message.Value);
-
-                            first = false;
+                            // We need to write the array separator manually
+                            writer.WriteRaw((byte) ',');
                         }
-                        else
-                        {
-                            // Write the raw JSON value
-                            jsonWriter.WriteRawValue(message.GetString());
-                        }
+                        
+                        var buf = Utf8Json.JsonSerializer.SerializeUnsafe<object>(message.Value);
+                        if (buf.Count > 0)
+                            MemoryCopy(ref writer, buf.Array, buf.Offset, buf.Count);
+
+//                        if (message.Value is ClientHubInvocation chi)
+//                        {
+//                            chi.AfterSerializationCallback?.Invoke(chi.Args);
+//                        }
+
+                        first = false;
+//                        }
+//                        else
+//                        {
+//                            // Write the raw JSON value
+//                            jsonWriter.WriteRawValue(message.GetString());
+//                        }
                     }
                 }
             }
         }
+
+        public void OnMessageDropped()
+        {
+//            foreach (var message in Messages)
+//            {
+//                for (int i = message.Offset; i < message.Count; ++i)
+//                {
+//                    if (message.Array == null)
+//                        continue;
+//                    var msg = message.Array[i];
+//                    if (msg.Value is ClientHubInvocation chi)
+//                    {
+//                        chi.AfterSerializationCallback?.Invoke(chi.Args);
+//                    }
+//                }
+//            }
+        }
     }
 }
+

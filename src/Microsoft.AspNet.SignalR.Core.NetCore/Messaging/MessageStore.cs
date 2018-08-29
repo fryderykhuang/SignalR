@@ -3,6 +3,7 @@
 
 using System;
 using System.Threading;
+using Microsoft.AspNet.SignalR.Hubs;
 
 namespace Microsoft.AspNet.SignalR.Messaging
 {
@@ -167,6 +168,8 @@ namespace Microsoft.AspNet.SignalR.Messaging
                     if (existingFragment == fragment)
                     {
                         newMessageId = GetMessageId(fragmentNum, offset: _offset);
+
+                        existingFragment?.DisposeData();
                         return true;
                     }
                 }
@@ -195,6 +198,17 @@ namespace Microsoft.AspNet.SignalR.Messaging
             return false;
         }
 
+        internal void DisposeFragments()
+        {
+            if (typeof(Message).IsAssignableFrom(typeof(T)))
+            {
+                foreach (var fragment in _fragments)
+                {
+                    fragment?.DisposeData();
+                }
+            }
+        }
+
         private sealed class Fragment
         {
             public readonly ulong FragmentNum;
@@ -204,6 +218,20 @@ namespace Microsoft.AspNet.SignalR.Messaging
             {
                 FragmentNum = fragmentNum;
                 Data = new T[fragmentSize];
+            }
+
+            public void DisposeData()
+            {
+                foreach (var d in Data)
+                {
+                    if (!(d is Message msg)) continue;
+                    if (msg.Value is ClientHubInvocation chi)
+                    {
+                        chi.AfterSerializationCallback?.Invoke(chi.Args);
+
+//                        Console.WriteLine("AfterSerializationCallback from fragment disposal.");
+                    }
+                }
             }
         }
     }

@@ -21,7 +21,6 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
     public class ConnectionManager : IConnectionManager
     {
         private readonly IDependencyResolver _resolver;
-        private readonly IPerformanceCounterManager _counters;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ConnectionManager"/> class.
@@ -30,7 +29,6 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
         public ConnectionManager(IDependencyResolver resolver)
         {
             _resolver = resolver;
-            _counters = _resolver.Resolve<IPerformanceCounterManager>();
         }
 
         /// <summary>
@@ -83,11 +81,7 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
             var hubManager = _resolver.Resolve<IHubManager>();
             var pipelineInvoker = _resolver.Resolve<IHubPipelineInvoker>();
 
-            hubManager.EnsureHub(hubName,
-                _counters.ErrorsHubResolutionTotal,
-                _counters.ErrorsHubResolutionPerSec,
-                _counters.ErrorsAllTotal,
-                _counters.ErrorsAllPerSec);
+            hubManager.EnsureHub(hubName);
 
             return new HubContext(connection, pipelineInvoker, hubName);
         }
@@ -135,7 +129,6 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
                                   ListHelper<string>.Empty,
                                   _resolver.Resolve<ITraceManager>(),
                                   _resolver.Resolve<IAckHandler>(),
-                                  _resolver.Resolve<IPerformanceCounterManager>(),
                                   _resolver.Resolve<IProtectedData>(),
                                   _resolver.Resolve<IMemoryPool>());
         }

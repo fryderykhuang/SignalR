@@ -5,6 +5,7 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNet.SignalR.Core;
 
 namespace Microsoft.AspNet.SignalR
 {

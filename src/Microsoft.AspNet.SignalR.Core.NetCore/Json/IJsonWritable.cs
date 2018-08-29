@@ -14,6 +14,6 @@ namespace Microsoft.AspNet.SignalR.Json
         /// Serializes itself to JSON via a <see cref="System.IO.TextWriter"/>.
         /// </summary>
         /// <param name="writer">The <see cref="System.IO.TextWriter"/> that receives the JSON serialized object.</param>
-        void WriteJson(TextWriter writer);
+        void WriteJson(ref Utf8Json.JsonWriter writer);
     }
 }

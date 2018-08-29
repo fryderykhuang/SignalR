@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR.Infrastructure;
 
@@ -14,7 +15,14 @@ namespace Microsoft.AspNet.SignalR.Messaging
 {
     internal class DefaultSubscription : Subscription
     {
-        internal static string _defaultCursorPrefix = GetCursorPrefix();
+        static DefaultSubscription()
+        {
+            _defaultCursorPrefix = GetCursorPrefix();
+            _defaultCursorPrefixBytes = Encoding.UTF8.GetBytes(_defaultCursorPrefix);
+        }
+
+        internal static string _defaultCursorPrefix;
+        internal static byte[] _defaultCursorPrefixBytes;
 
         private List<Cursor> _cursors;
         private List<Topic> _cursorTopics;
@@ -29,9 +37,8 @@ namespace Microsoft.AspNet.SignalR.Messaging
                                    Func<MessageResult, object, Task<bool>> callback,
                                    int maxMessages,
                                    IStringMinifier stringMinifier,
-                                   IPerformanceCounterManager counters,
                                    object state) :
-            base(identity, eventKeys, callback, maxMessages, counters, state)
+            base(identity, eventKeys, callback, maxMessages, state)
         {
             _stringMinifier = stringMinifier;
 
@@ -128,11 +135,11 @@ namespace Microsoft.AspNet.SignalR.Messaging
             }
         }
 
-        public override void WriteCursor(TextWriter textWriter)
+        public override void WriteCursor(ref Utf8Json.JsonWriter textWriter)
         {
             lock (_cursors)
             {
-                Cursor.WriteCursors(textWriter, _cursors, _defaultCursorPrefix);
+                Cursor.WriteCursors(ref textWriter, _cursors, _defaultCursorPrefixBytes);
             }
         }
 

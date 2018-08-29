@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using Microsoft.AspNet.SignalR.Infrastructure;
 
 namespace Microsoft.AspNet.SignalR.Messaging
 {
@@ -11,7 +12,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
     {
         IList<string> EventKeys { get; }
 
-        Action<TextWriter> WriteCursor { get; set; }
+        WriteCursorDelegate WriteCursor { get; set; }
 
         string Identity { get; }
 

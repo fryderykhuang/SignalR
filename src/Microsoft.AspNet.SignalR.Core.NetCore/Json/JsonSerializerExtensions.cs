@@ -69,16 +69,16 @@ namespace Microsoft.AspNet.SignalR.Json
                 throw new ArgumentNullException("serializer");
             }
 
-            var selfSerializer = value as IJsonWritable;
-
-            if (selfSerializer != null)
-            {
-                selfSerializer.WriteJson(writer);
-            }
-            else
-            {
+//            var selfSerializer = value as IJsonWritable;
+//
+//            if (selfSerializer != null)
+//            {
+//                selfSerializer.WriteJson(writer);
+//            }
+//            else
+//            {
                 serializer.Serialize(writer, value);
-            }
+//            }
         }
 
         /// <summary>

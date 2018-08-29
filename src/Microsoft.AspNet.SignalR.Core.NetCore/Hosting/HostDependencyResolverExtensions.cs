@@ -21,24 +21,8 @@ namespace Microsoft.AspNet.SignalR.Hosting
                 throw new ArgumentNullException("instanceName");
             }
 
-            // Performance counters are broken on mono so just skip this step
-            if (!MonoUtility.IsRunningMono)
-            {
-                // Initialize the performance counters
-                resolver.InitializePerformanceCounters(instanceName, hostShutdownToken);
-            }
-
             // Dispose the dependency resolver on host shut down (cleanly)
             resolver.InitializeResolverDispose(hostShutdownToken);
-        }
-
-        private static void InitializePerformanceCounters(this IDependencyResolver resolver, string instanceName, CancellationToken hostShutdownToken)
-        {
-            var counters = resolver.Resolve<IPerformanceCounterManager>();
-            if (counters != null)
-            {
-                counters.Initialize(instanceName, hostShutdownToken);
-            }
         }
 
         private static void InitializeResolverDispose(this IDependencyResolver resolver, CancellationToken hostShutdownToken)

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Microsoft.AspNet.SignalR.Core;
 
 namespace Microsoft.AspNet.SignalR.Messaging
 {
@@ -13,6 +14,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
     {
         private static char[] _escapeChars = new[] { '\\', '|', ',' };
         private string _escapedKey;
+        private byte[] _escapedKeyBytes;
 
         public string Key { get; private set; }
         public ulong Id { get; set; }
@@ -32,22 +34,23 @@ namespace Microsoft.AspNet.SignalR.Messaging
             Key = key;
             Id = id;
             _escapedKey = minifiedKey;
+            _escapedKeyBytes = Encoding.UTF8.GetBytes(_escapedKey);
         }
 
-        public static void WriteCursors(TextWriter textWriter, IList<Cursor> cursors, string prefix)
+        public static void WriteCursors(ref Utf8Json.JsonWriter textWriter, IList<Cursor> cursors, byte[] prefix)
         {
-            textWriter.Write(prefix);
+            textWriter.WriteRaw(prefix);
 
             for (int i = 0; i < cursors.Count; i++)
             {
                 if (i > 0)
                 {
-                    textWriter.Write('|');
+                    textWriter.WriteRaw((byte) '|');
                 }
                 Cursor cursor = cursors[i];
-                textWriter.Write(cursor._escapedKey);
-                textWriter.Write(',');
-                WriteUlongAsHexToBuffer(cursor.Id, textWriter);
+                textWriter.WriteRaw(cursor._escapedKeyBytes);
+                textWriter.WriteRaw((byte) ',');
+                WriteUlongAsHexToBuffer(cursor.Id, ref textWriter);
             }
         }
 
@@ -75,6 +78,33 @@ namespace Microsoft.AspNet.SignalR.Messaging
             if (length == 0)
             {
                 textWriter.Write('0');
+            }
+        }
+
+        internal static void WriteUlongAsHexToBuffer(ulong value, ref Utf8Json.JsonWriter textWriter)
+        {
+            // This tracks the length of the output and serves as the index for the next character to be written into the pBuffer.
+            // The length could reach up to 16 characters, so at least that much space should remain in the pBuffer.
+            int length = 0;
+
+            // Write the hex value from left to right into the buffer without zero padding.
+            for (int i = 0; i < 16; i++)
+            {
+                // Convert the first 4 bits of the value to a valid hex character.
+                char hexChar = Int32ToHex((int)(value >> 60));
+                value <<= 4;
+
+                // Don't increment length if it would just add zero padding
+                if (length != 0 || hexChar != '0')
+                {
+                    textWriter.WriteRaw((byte) hexChar);
+                    length++;
+                }
+            }
+
+            if (length == 0)
+            {
+                textWriter.WriteRaw((byte) '0');
             }
         }
 

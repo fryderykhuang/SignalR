@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR.Configuration;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Core.Owin;
 using Microsoft.AspNet.SignalR.Hosting;
 using Microsoft.AspNet.SignalR.Infrastructure;
@@ -55,7 +56,6 @@ namespace Microsoft.AspNet.SignalR
             MessageBus = resolver.Resolve<IMessageBus>();
             JsonSerializer = resolver.Resolve<JsonSerializer>();
             TraceManager = resolver.Resolve<ITraceManager>();
-            Counters = resolver.Resolve<IPerformanceCounterManager>();
             AckHandler = resolver.Resolve<IAckHandler>();
             ProtectedData = resolver.Resolve<IProtectedData>();
             UserIdProvider = resolver.Resolve<IUserIdProvider>();
@@ -93,8 +93,6 @@ namespace Microsoft.AspNet.SignalR
         protected IAckHandler AckHandler { get; private set; }
 
         protected ITraceManager TraceManager { get; private set; }
-
-        protected IPerformanceCounterManager Counters { get; private set; }
 
         protected ITransport Transport { get; private set; }
 
@@ -280,8 +278,6 @@ namespace Microsoft.AspNet.SignalR
 
             Transport.Received = data =>
             {
-                Counters.ConnectionMessagesSentTotal.Increment();
-                Counters.ConnectionMessagesSentPerSec.Increment();
                 return TaskAsyncHelper.FromMethod(() => OnReceived(context.Request, connectionId, data).OrEmpty());
             };
 
@@ -397,7 +393,6 @@ namespace Microsoft.AspNet.SignalR
                                   groups,
                                   TraceManager,
                                   AckHandler,
-                                  Counters,
                                   ProtectedData,
                                   Pool);
         }
@@ -532,8 +527,7 @@ namespace Microsoft.AspNet.SignalR
         private Task ProcessStartRequest(HttpContext context, string connectionId)
         {
             return OnConnected(context.Request, connectionId).OrEmpty()
-                .Then(c => SendJsonResponse(c, StartJsonPayload), context)
-                .Then(c => c.ConnectionsConnected.Increment(), Counters);
+                .Then(c => SendJsonResponse(c, StartJsonPayload), context);
         }
 
         private static Task SendJsonResponse(HttpContext context, string jsonPayload)

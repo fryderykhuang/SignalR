@@ -1,6 +1,7 @@
 ﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Runtime.Serialization;
@@ -43,5 +44,14 @@ namespace Microsoft.AspNet.SignalR.Hubs
         [JsonProperty("S", NullValueHandling = NullValueHandling.Ignore)]
         [DataMember(Name = "S")]
         public IDictionary<string, object> State { get; set; }
+
+        [JsonIgnore]
+        [IgnoreDataMember]
+        public Action<object[]> AfterSerializationCallback { get; set; }
+
+        public bool ShouldSerializeState()
+        {
+            return State != null;
+        }
     }
 }

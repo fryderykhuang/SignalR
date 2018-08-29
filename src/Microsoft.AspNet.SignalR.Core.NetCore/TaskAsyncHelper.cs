@@ -983,7 +983,7 @@ namespace Microsoft.AspNet.SignalR
         }
 
 
-#if !NETFX_CORE && !NETSTANDARD
+//#if !NETFX_CORE && !NETSTANDARD
         internal struct CulturePair
         {
             public CultureInfo Culture;
@@ -1035,7 +1035,7 @@ namespace Microsoft.AspNet.SignalR
         {
             RunWithPreservedCulture(preservedCulture, f => f(), action);
         }
-#endif
+//#endif
 
         internal static Task ContinueWithPreservedCulture(this Task task, Action<Task> continuationAction, TaskContinuationOptions continuationOptions)
         {

@@ -34,14 +34,15 @@ namespace Microsoft.AspNet.SignalR.Hubs
             return true;
         }
 
-        protected override ClientHubInvocation GetInvocationData(string method, object[] args)
+        protected override ClientHubInvocation GetInvocationData(string method, object[] args, Action<object[]> afterSerializationCb)
         {
             return new ClientHubInvocation
             {
                 Hub = HubName,
                 Method = method,
                 Args = args,
-                State = _tracker.GetChanges()
+                State = _tracker.GetChanges(),
+                AfterSerializationCallback = afterSerializationCb
             };
         }
     }

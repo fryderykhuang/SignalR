@@ -1,11 +1,11 @@
 ﻿// Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
-using System;
-using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR.Hubs;
 using Microsoft.AspNet.SignalR.Json;
 using Microsoft.AspNetCore.Http;
+using System;
+using System.Threading.Tasks;
 
 //using Microsoft.Owin;
 
@@ -32,6 +32,7 @@ namespace Microsoft.AspNet.SignalR.Owin.Middleware
             context.Response.OnStarting(async state =>
             {
                 var ctx = (HttpContext) state;
+                ctx.Request.Headers["Content-Type"] = "application/x-www-form-urlencoded";
                 if (JsonUtility.TryRejectJSONPRequest(_configuration, ctx))
                 {
                     return;

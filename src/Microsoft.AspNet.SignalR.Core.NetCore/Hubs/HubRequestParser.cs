@@ -5,6 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Runtime.Serialization;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Json;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -34,14 +36,19 @@ namespace Microsoft.AspNet.SignalR.Hubs
         private class HubInvocation
         {
             [JsonProperty("H")]
+            [DataMember(Name = "H")]
             public string Hub { get; set; }
             [JsonProperty("M")]
+            [DataMember(Name = "M")]
             public string Method { get; set; }
             [JsonProperty("I")]
+            [DataMember(Name = "I")]
             public string Id { get; set; }
             [JsonProperty("S")]
+            [DataMember(Name = "S")]
             public JRaw State { get; set; }
             [JsonProperty("A")]
+            [DataMember(Name = "A")]
             public JRaw[] Args { get; set; }
         }
 

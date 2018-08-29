@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Newtonsoft.Json;
 

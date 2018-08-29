@@ -5,13 +5,14 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Infrastructure;
 
 namespace Microsoft.AspNet.SignalR.Hubs
 {
     public static class HubManagerExtensions
     {
-        public static HubDescriptor EnsureHub(this IHubManager hubManager, string hubName, params IPerformanceCounter[] counters)
+        public static HubDescriptor EnsureHub(this IHubManager hubManager, string hubName)
         {
             if (hubManager == null)
             {
@@ -23,21 +24,7 @@ namespace Microsoft.AspNet.SignalR.Hubs
                 throw new ArgumentNullException("hubName");
             }
 
-            if (counters == null)
-            {
-                throw new ArgumentNullException("counters");
-            }
-
             var descriptor = hubManager.GetHub(hubName);
-
-            if (descriptor == null)
-            {
-                for (var i = 0; i < counters.Length; i++)
-                {
-                    counters[i].Increment();
-                }
-                throw new InvalidOperationException(String.Format(CultureInfo.CurrentCulture, Resources.Error_HubCouldNotBeResolved, hubName));
-            }
 
             return descriptor;
         }

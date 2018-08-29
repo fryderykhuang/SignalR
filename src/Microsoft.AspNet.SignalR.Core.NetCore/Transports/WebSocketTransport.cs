@@ -2,12 +2,14 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR.Configuration;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Hosting;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Json;
@@ -15,6 +17,7 @@ using Microsoft.AspNet.SignalR.Owin;
 using Microsoft.AspNet.SignalR.Tracing;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
+using JsonWriter = Utf8Json.JsonWriter;
 
 namespace Microsoft.AspNet.SignalR.Transports
 {
@@ -31,7 +34,6 @@ namespace Microsoft.AspNet.SignalR.Transports
         private readonly Action<string> _message;
         private readonly Action _closed;
         private readonly Action<Exception> _error;
-        private readonly IPerformanceCounterManager _counters;
 
         private static readonly byte[] _keepAlive = Encoding.UTF8.GetBytes("{}");
 
@@ -40,7 +42,6 @@ namespace Microsoft.AspNet.SignalR.Transports
             : this(context,
                    resolver.Resolve<JsonSerializer>(),
                    resolver.Resolve<ITransportHeartbeat>(),
-                   resolver.Resolve<IPerformanceCounterManager>(),
                    resolver.Resolve<ITraceManager>(),
                    resolver.Resolve<IMemoryPool>(),
                    resolver.Resolve<IConfigurationManager>().MaxIncomingWebSocketMessageSize)
@@ -50,11 +51,10 @@ namespace Microsoft.AspNet.SignalR.Transports
         public WebSocketTransport(HttpContext context,
                                   JsonSerializer serializer,
                                   ITransportHeartbeat heartbeat,
-                                  IPerformanceCounterManager performanceCounterManager,
                                   ITraceManager traceManager,
                                   IMemoryPool pool,
                                   int? maxIncomingMessageSize)
-            : base(context, serializer, heartbeat, performanceCounterManager, traceManager, pool)
+            : base(context, serializer, heartbeat, traceManager, pool)
         {
             _context = context;
             _maxIncomingMessageSize = maxIncomingMessageSize;
@@ -62,8 +62,6 @@ namespace Microsoft.AspNet.SignalR.Transports
             _message = OnMessage;
             _closed = OnClosed;
             _error = OnSocketError;
-
-            _counters = performanceCounterManager;
         }
 
         public override bool IsAlive
@@ -86,10 +84,10 @@ namespace Microsoft.AspNet.SignalR.Transports
         {
             // Ensure delegate continues to use the C# Compiler static delegate caching optimization.
             return EnqueueOperation(state =>
-            {
-                var webSocket = (IWebSocket)state;
-                return webSocket.Send(new ArraySegment<byte>(_keepAlive));
-            },
+                {
+                    var webSocket = (IWebSocket)state;
+                    return webSocket.Send(new ArraySegment<byte>(_keepAlive));
+                },
             _socket);
         }
 
@@ -110,7 +108,14 @@ namespace Microsoft.AspNet.SignalR.Transports
             var context = new WebSocketTransportContext(this, value);
 
             // Ensure delegate continues to use the C# Compiler static delegate caching optimization.
-            return EnqueueOperation(state => PerformSend(state), context);
+            return EnqueueOperation(state => PerformSend(state), context, state =>
+            {
+                var ctx = (WebSocketTransportContext) state;
+                if (ctx.State is PersistentResponse resp)
+                {
+                    resp.OnMessageDropped();
+                }
+            });
         }
 
         public override Task Send(PersistentResponse response)
@@ -118,16 +123,6 @@ namespace Microsoft.AspNet.SignalR.Transports
             OnSendingResponse(response);
 
             return Send((object)response);
-        }
-
-        public override void IncrementConnectionsCount()
-        {
-            _counters.ConnectionsCurrentWebSockets.Increment();
-        }
-
-        public override void DecrementConnectionsCount()
-        {
-            _counters.ConnectionsCurrentWebSockets.Decrement();
         }
 
         private async Task AcceptWebSocketRequest(Func<IWebSocket, Task> callback)
@@ -149,25 +144,30 @@ namespace Microsoft.AspNet.SignalR.Transports
             }
 
             var handler = new AspNetCoreWebSocketHandler(callback, PrepareWebSocket, _maxIncomingMessageSize);
-            var webSocket = await _context.WebSockets.AcceptWebSocketAsync();
-            await handler.ProcessRequest(webSocket, _context);
+            using (var webSocket = await _context.WebSockets.AcceptWebSocketAsync())
+            {
+                await handler.ProcessRequest(webSocket, _context);
+            }
         }
+
+        static readonly ArrayPool<byte> BufferPool = ArrayPool<byte>.Shared;
 
         private static async Task PerformSend(object state)
         {
             var context = (WebSocketTransportContext)state;
             var socket = context.Transport._socket;
 
-            using (var writer = new BinaryMemoryPoolTextWriter(context.Transport.Pool))
+            if (context.State is IJsonWritable selfSerializer)
             {
+                var buf = BufferPool.Rent(262120);
+                var writer = new JsonWriter(buf);
                 try
                 {
-                    context.Transport.JsonSerializer.Serialize(context.State, writer);
-                    writer.Flush();
+                    selfSerializer.WriteJson(ref writer);
 
-                    await socket.Send(writer.Buffer).PreserveCulture();
+                    await socket.Send(writer.GetBuffer()).PreserveCulture();
 
-                    context.Transport.TraceOutgoingMessage(writer.Buffer);
+                    //                        context.Transport.TraceOutgoingMessage(writer.Buffer);
                 }
                 catch (Exception ex)
                 {
@@ -175,6 +175,32 @@ namespace Microsoft.AspNet.SignalR.Transports
                     // The client should then immediately reconnect instead of simply missing keep-alives.
                     context.Transport.OnError(ex);
                     throw;
+                }
+                finally
+                {
+                    BufferPool.Return(buf);
+                }
+            }
+            else
+            {
+                using (var writer = new BinaryMemoryPoolTextWriter(context.Transport.Pool))
+                {
+                    try
+                    {
+                        context.Transport.JsonSerializer.Serialize(context.State, writer);
+                        writer.Flush();
+
+                        await socket.Send(writer.Buffer).PreserveCulture();
+
+//                        context.Transport.TraceOutgoingMessage(writer.Buffer);
+                    }
+                    catch (Exception ex)
+                    {
+                        // OnError will close the socket in the event of a JSON serialization or flush error.
+                        // The client should then immediately reconnect instead of simply missing keep-alives.
+                        context.Transport.OnError(ex);
+                        throw;
+                    }
                 }
             }
         }

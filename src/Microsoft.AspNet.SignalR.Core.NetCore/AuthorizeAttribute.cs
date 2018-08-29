@@ -5,6 +5,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Security.Principal;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Hubs;
 using Microsoft.AspNetCore.Http;
 

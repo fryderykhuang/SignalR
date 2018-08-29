@@ -33,10 +33,11 @@ namespace Microsoft.AspNet.SignalR.Messaging
             Source = source;
             Key = key;
             Encoding = _encoding;
-            Value = value == null ? new ArraySegment<byte>(_zeroByteBuffer) : new ArraySegment<byte>(Encoding.GetBytes(value));
+            Value = value;
+//            Value = value == null ? new ArraySegment<byte>(_zeroByteBuffer) : new ArraySegment<byte>(Encoding.GetBytes(value));
         }
 
-        public Message(string source, string key, ArraySegment<byte> value)
+        public Message(string source, string key, object value)
             : this()
         {
             if (source == null)
@@ -68,7 +69,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
         /// The message payload
         /// </summary>
         [SuppressMessage("Microsoft.Usage", "CA2227:CollectionPropertiesShouldBeReadOnly", Justification = "This type is serialzied")]
-        public ArraySegment<byte> Value { get; set; }
+        public object Value { get; set; }
 
         /// <summary>
         /// The command id if this message is a command
@@ -113,45 +114,45 @@ namespace Microsoft.AspNet.SignalR.Messaging
             }
         }
 
-        [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate", Justification = "This may be expensive")]
-        public string GetString()
-        {
-            // If there's no encoding this is a raw binary payload
-            if (Encoding == null)
-            {
-                throw new NotSupportedException();
-            }
+//        [SuppressMessage("Microsoft.Design", "CA1024:UsePropertiesWhereAppropriate", Justification = "This may be expensive")]
+//        public string GetString()
+//        {
+//            // If there's no encoding this is a raw binary payload
+//            if (Encoding == null)
+//            {
+//                throw new NotSupportedException();
+//            }
+//
+//            return Encoding.GetString(Value.Array, Value.Offset, Value.Count);
+//        }
 
-            return Encoding.GetString(Value.Array, Value.Offset, Value.Count);
-        }
+//        public void WriteTo(Stream stream)
+//        {
+//            var binaryWriter = new BinaryWriter(stream);
+//            binaryWriter.Write(Source);
+//            binaryWriter.Write(Key);
+//            binaryWriter.Write(Value.Count);
+//            binaryWriter.Write(Value.Array, Value.Offset, Value.Count);
+//            binaryWriter.Write(CommandId ?? String.Empty);
+//            binaryWriter.Write(WaitForAck);
+//            binaryWriter.Write(IsAck);
+//            binaryWriter.Write(Filter ?? String.Empty);
+//        }
 
-        public void WriteTo(Stream stream)
-        {
-            var binaryWriter = new BinaryWriter(stream);
-            binaryWriter.Write(Source);
-            binaryWriter.Write(Key);
-            binaryWriter.Write(Value.Count);
-            binaryWriter.Write(Value.Array, Value.Offset, Value.Count);
-            binaryWriter.Write(CommandId ?? String.Empty);
-            binaryWriter.Write(WaitForAck);
-            binaryWriter.Write(IsAck);
-            binaryWriter.Write(Filter ?? String.Empty);
-        }
-
-        public static Message ReadFrom(Stream stream)
-        {
-            var message = new Message();
-            var binaryReader = new BinaryReader(stream);
-            message.Source = binaryReader.ReadString();
-            message.Key = binaryReader.ReadString();
-            int bytes = binaryReader.ReadInt32();
-            message.Value = new ArraySegment<byte>(binaryReader.ReadBytes(bytes));
-            message.CommandId = binaryReader.ReadString();
-            message.WaitForAck = binaryReader.ReadBoolean();
-            message.IsAck = binaryReader.ReadBoolean();
-            message.Filter = binaryReader.ReadString();
-
-            return message;
-        }
+//        public static Message ReadFrom(Stream stream)
+//        {
+//            var message = new Message();
+//            var binaryReader = new BinaryReader(stream);
+//            message.Source = binaryReader.ReadString();
+//            message.Key = binaryReader.ReadString();
+//            int bytes = binaryReader.ReadInt32();
+//            message.Value = new ArraySegment<byte>(binaryReader.ReadBytes(bytes));
+//            message.CommandId = binaryReader.ReadString();
+//            message.WaitForAck = binaryReader.ReadBoolean();
+//            message.IsAck = binaryReader.ReadBoolean();
+//            message.Filter = binaryReader.ReadString();
+//
+//            return message;
+//        }
     }
 }

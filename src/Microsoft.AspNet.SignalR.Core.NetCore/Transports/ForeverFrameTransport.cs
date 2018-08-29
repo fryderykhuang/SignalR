@@ -6,6 +6,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Hosting;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Json;
@@ -31,27 +32,9 @@ namespace Microsoft.AspNet.SignalR.Transports
                                             "</script></head>" +
                                             "<body>\r\n";
 
-        private readonly IPerformanceCounterManager _counters;
-
         public ForeverFrameTransport(HttpContext context, IDependencyResolver resolver)
-            : this(context, resolver, resolver.Resolve<IPerformanceCounterManager>())
-        {
-        }
-
-        public ForeverFrameTransport(HttpContext context, IDependencyResolver resolver, IPerformanceCounterManager performanceCounterManager)
             : base(context, resolver)
         {
-            _counters = performanceCounterManager;
-        }
-
-        public override void IncrementConnectionsCount()
-        {
-            _counters.ConnectionsCurrentForeverFrame.Increment();
-        }
-
-        public override void DecrementConnectionsCount()
-        {
-            _counters.ConnectionsCurrentForeverFrame.Decrement();
         }
 
         public override Task KeepAlive()
@@ -67,7 +50,10 @@ namespace Microsoft.AspNet.SignalR.Transports
             var context = new ForeverFrameTransportContext(this, response);
 
             // Ensure delegate continues to use the C# Compiler static delegate caching optimization.
-            return EnqueueOperation(s => PerformSend(s), context);
+            return EnqueueOperation(s => PerformSend(s), context, state =>
+            {
+                var ctx = (ForeverFrameTransportContext) state;
+            });
         }
 
         protected internal override Task InitializeResponse(ITransportConnection connection)

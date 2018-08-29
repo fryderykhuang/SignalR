@@ -2,17 +2,20 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Buffers;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Hosting;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Json;
 using Microsoft.AspNet.SignalR.Tracing;
 using Microsoft.AspNetCore.Http;
 using Newtonsoft.Json;
+using JsonWriter = Utf8Json.JsonWriter;
 
 namespace Microsoft.AspNet.SignalR.Transports
 {
@@ -21,7 +24,6 @@ namespace Microsoft.AspNet.SignalR.Transports
     {
         private static readonly ProtocolResolver _protocolResolver = new ProtocolResolver();
 
-        private readonly IPerformanceCounterManager _counters;
         private readonly JsonSerializer _jsonSerializer;
         private IDisposable _busRegistration;
 
@@ -31,7 +33,6 @@ namespace Microsoft.AspNet.SignalR.Transports
             : this(context,
                    resolver.Resolve<JsonSerializer>(),
                    resolver.Resolve<ITransportHeartbeat>(),
-                   resolver.Resolve<IPerformanceCounterManager>(),
                    resolver.Resolve<ITraceManager>(),
                    resolver.Resolve<IMemoryPool>())
         {
@@ -40,14 +41,12 @@ namespace Microsoft.AspNet.SignalR.Transports
         protected ForeverTransport(HttpContext context,
                                    JsonSerializer jsonSerializer,
                                    ITransportHeartbeat heartbeat,
-                                   IPerformanceCounterManager performanceCounterManager,
                                    ITraceManager traceManager,
                                    IMemoryPool pool)
-            : base(context, heartbeat, performanceCounterManager, traceManager)
+            : base(context, heartbeat, traceManager)
         {
             Pool = pool;
             _jsonSerializer = jsonSerializer;
-            _counters = performanceCounterManager;
         }
 
         protected IMemoryPool Pool { get; private set; }
@@ -137,8 +136,6 @@ namespace Microsoft.AspNet.SignalR.Transports
 
         protected void OnError(Exception ex)
         {
-            IncrementErrors();
-
             // Complete the http request
             _transportLifetime.Complete(ex);
         }
@@ -178,7 +175,6 @@ namespace Microsoft.AspNet.SignalR.Transports
                     if (newConnection)
                     {
                         connected = Connected ?? _emptyTaskFunc;
-                        _counters.ConnectionsConnected.Increment();
                     }
                     else
                     {
@@ -196,7 +192,6 @@ namespace Microsoft.AspNet.SignalR.Transports
             else if (!SuppressReconnect)
             {
                 initialize = Reconnected;
-                _counters.ConnectionsReconnected.Increment();
             }
 
             initialize = initialize ?? _emptyTaskFunc;
@@ -314,15 +309,39 @@ namespace Microsoft.AspNet.SignalR.Transports
 
             context.Transport.Context.Response.ContentType = JsonUtility.JsonMimeType;
 
-            using (var writer = context.Transport.CreateMemoryPoolWriter(context.Transport.Pool))
+            if (context.State is IJsonWritable selfSerializer)
             {
-                context.Transport.JsonSerializer.Serialize(context.State, writer);
-                writer.Flush();
+                var srcbuf = ThreadStaticMemoryPool.GetBuffer();
+                var writer = new JsonWriter(srcbuf);
+                try
+                {
+                    selfSerializer.WriteJson(ref writer);
+                    var buf = writer.GetBuffer();
+                    context.Transport.Context.Response.Body.Write(buf.Array, buf.Offset, buf.Count);
 
-                var outputBuffer = writer.Buffer;
-                context.Transport.Context.Response.Body.Write(outputBuffer.Array, outputBuffer.Offset, outputBuffer.Count);
+                    //                        context.Transport.TraceOutgoingMessage(writer.Buffer);
+                }
+                catch (Exception ex)
+                {
+                    // OnError will close the socket in the event of a JSON serialization or flush error.
+                    // The client should then immediately reconnect instead of simply missing keep-alives.
+                    context.Transport.OnError(ex);
+                    throw;
+                }
+            }
+            else
+            {
+                using (var writer = context.Transport.CreateMemoryPoolWriter(context.Transport.Pool))
+                {
+                    context.Transport.JsonSerializer.Serialize(context.State, writer);
+                    writer.Flush();
 
-                context.Transport.TraceOutgoingMessage(writer.Buffer);
+                    var outputBuffer = writer.Buffer;
+                    context.Transport.Context.Response.Body.Write(outputBuffer.Array, outputBuffer.Offset,
+                        outputBuffer.Count);
+
+//                context.Transport.TraceOutgoingMessage(writer.Buffer);
+                }
             }
 
             return TaskAsyncHelper.Empty;

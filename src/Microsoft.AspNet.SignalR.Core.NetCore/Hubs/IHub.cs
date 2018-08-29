@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Microsoft.AspNet.SignalR.Hubs
 {
-    public interface IHub : IUntrackedDisposable
+    public interface IHub
     {
         /// <summary>
         /// Gets a <see cref="HubCallerContext"/>. Which contains information about the calling client.

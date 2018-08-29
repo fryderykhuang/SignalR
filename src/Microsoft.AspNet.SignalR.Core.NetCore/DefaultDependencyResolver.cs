@@ -8,6 +8,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using Microsoft.AspNet.SignalR.Configuration;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Hubs;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Json;
@@ -66,9 +67,6 @@ namespace Microsoft.AspNet.SignalR
 
             var serverMessageHandler = new Lazy<AckSubscriber>(() => new AckSubscriber(this));
             Register(typeof(AckSubscriber), () => serverMessageHandler.Value);
-
-            var perfCounterWriter = new Lazy<PerformanceCounterManager>(() => new PerformanceCounterManager(this));
-            Register(typeof(IPerformanceCounterManager), () => perfCounterWriter.Value);
 
             var userIdProvider = new PrincipalUserIdProvider();
             Register(typeof(IUserIdProvider), () => userIdProvider);

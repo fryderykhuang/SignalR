@@ -8,6 +8,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR.Configuration;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Tracing;
 
@@ -63,7 +64,6 @@ namespace Microsoft.AspNet.SignalR.Messaging
         public MessageBus(IDependencyResolver resolver)
             : this(resolver.Resolve<IStringMinifier>(),
                    resolver.Resolve<ITraceManager>(),
-                   resolver.Resolve<IPerformanceCounterManager>(),
                    resolver.Resolve<IConfigurationManager>(),
                    DefaultMaxTopicsWithNoSubscriptions)
         {
@@ -74,13 +74,11 @@ namespace Microsoft.AspNet.SignalR.Messaging
         /// </summary>
         /// <param name="stringMinifier"></param>
         /// <param name="traceManager"></param>
-        /// <param name="performanceCounterManager"></param>
         /// <param name="configurationManager"></param>
         /// <param name="maxTopicsWithNoSubscriptions"></param>
         [SuppressMessage("Microsoft.Reliability", "CA2000:Dispose objects before losing scope", Justification = "The message broker is disposed when the bus is disposed.")]
         public MessageBus(IStringMinifier stringMinifier,
                           ITraceManager traceManager,
-                          IPerformanceCounterManager performanceCounterManager,
                           IConfigurationManager configurationManager,
                           int maxTopicsWithNoSubscriptions)
         {
@@ -92,11 +90,6 @@ namespace Microsoft.AspNet.SignalR.Messaging
             if (traceManager == null)
             {
                 throw new ArgumentNullException("traceManager");
-            }
-
-            if (performanceCounterManager == null)
-            {
-                throw new ArgumentNullException("performanceCounterManager");
             }
 
             if (configurationManager == null)
@@ -111,13 +104,12 @@ namespace Microsoft.AspNet.SignalR.Messaging
 
             _stringMinifier = stringMinifier;
             _traceManager = traceManager;
-            Counters = performanceCounterManager;
             _trace = _traceManager["SignalR." + typeof(MessageBus).Name];
             _maxTopicsWithNoSubscriptions = maxTopicsWithNoSubscriptions;
 
             _gcTimer = new Timer(_ => GarbageCollectTopics(), state: null, dueTime: _gcInterval, period: _gcInterval);
 
-            _broker = new MessageBroker(Counters)
+            _broker = new MessageBroker()
             {
                 Trace = _trace
             };
@@ -135,7 +127,6 @@ namespace Microsoft.AspNet.SignalR.Messaging
         }
 
         protected internal TopicLookup Topics { get; private set; }
-        protected IPerformanceCounterManager Counters { get; private set; }
 
         /// <summary>
         /// Publishes a new message to the specified event on the bus.
@@ -155,8 +146,8 @@ namespace Microsoft.AspNet.SignalR.Messaging
                 ScheduleTopic(topic);
             }
 
-            Counters.MessageBusMessagesPublishedTotal.Increment();
-            Counters.MessageBusMessagesPublishedPerSec.Increment();
+//            Counters.MessageBusMessagesPublishedTotal.Increment();
+//            Counters.MessageBusMessagesPublishedPerSec.Increment();
 
 
             return TaskAsyncHelper.Empty;
@@ -250,7 +241,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
         [SuppressMessage("Microsoft.Design", "CA1062:Validate arguments of public methods", MessageId = "0", Justification = "Called from derived class")]
         protected virtual Subscription CreateSubscription(ISubscriber subscriber, string cursor, Func<MessageResult, object, Task<bool>> callback, int messageBufferSize, object state)
         {
-            return new DefaultSubscription(subscriber.Identity, subscriber.EventKeys, Topics, cursor, callback, messageBufferSize, _stringMinifier, Counters, state);
+            return new DefaultSubscription(subscriber.Identity, subscriber.EventKeys, Topics, cursor, callback, messageBufferSize, _stringMinifier, state);
         }
 
         protected void ScheduleEvent(string eventKey)
@@ -287,9 +278,6 @@ namespace Microsoft.AspNet.SignalR.Messaging
         /// <returns>A <see cref="Topic"/> for the specified key.</returns>
         protected virtual Topic CreateTopic(string key)
         {
-            // REVIEW: This can be called multiple times, should we guard against it?
-            Counters.MessageBusTopicsCurrent.Increment();
-
             return new Topic(_messageStoreSize, _topicTtl);
         }
 
@@ -306,6 +294,12 @@ namespace Microsoft.AspNet.SignalR.Messaging
                     Thread.Sleep(250);
                 }
 
+
+                foreach (var topic in Topics)
+                {
+                    topic.Value.Store.DisposeFragments();
+                }
+                
                 // Remove all topics
                 Topics.Clear();
 
@@ -406,7 +400,11 @@ namespace Microsoft.AspNet.SignalR.Messaging
             Topics.TryRemove(key);
             _stringMinifier.RemoveUnminified(key);
 
-            Counters.MessageBusTopicsCurrent.Decrement();
+//            Counters.MessageBusTopicsCurrent.Decrement();
+
+            topic.Store.DisposeFragments();
+
+//            Console.WriteLine($"Topic {key} destroyed.");
 
             _trace.TraceInformation("RemoveTopic(" + key + ")");
 

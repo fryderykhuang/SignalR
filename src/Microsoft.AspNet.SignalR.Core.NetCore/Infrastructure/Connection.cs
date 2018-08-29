@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
@@ -11,6 +12,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Hubs;
 using Microsoft.AspNet.SignalR.Json;
 using Microsoft.AspNet.SignalR.Messaging;
@@ -18,9 +20,12 @@ using Microsoft.AspNet.SignalR.Tracing;
 using Microsoft.AspNet.SignalR.Transports;
 using Newtonsoft.Json;
 using Utf8Json.Internal;
+using JsonWriter = Utf8Json.JsonWriter;
 
 namespace Microsoft.AspNet.SignalR.Infrastructure
 {
+    public delegate void WriteCursorDelegate(ref Utf8Json.JsonWriter writer);
+
     public class Connection : IConnection, ITransportConnection, ISubscriber
     {
         private readonly IMessageBus _bus;
@@ -29,7 +34,6 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
         private readonly string _connectionId;
         private readonly IList<string> _signals;
         private readonly DiffSet<string> _groups;
-        private readonly IPerformanceCounterManager _counters;
 
         private bool _aborted;
         private bool _initializing;
@@ -47,7 +51,6 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
                           IList<string> groups,
                           ITraceManager traceManager,
                           IAckHandler ackHandler,
-                          IPerformanceCounterManager performanceCounterManager,
                           IProtectedData protectedData,
                           IMemoryPool pool)
         {
@@ -64,7 +67,6 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
             _groups = new DiffSet<string>(groups);
             _traceSource = traceManager["SignalR.Connection"];
             _ackHandler = ackHandler;
-            _counters = performanceCounterManager;
             _protectedData = protectedData;
             _excludeMessage = m => ExcludeMessage(m);
             _pool = pool;
@@ -90,7 +92,7 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
 
         public event Action<ISubscriber, string> EventKeyRemoved;
 
-        public Action<TextWriter> WriteCursor { get; set; }
+        public WriteCursorDelegate WriteCursor { get; set; }
 
         public string Identity
         {
@@ -155,7 +157,7 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
             }
 
             // Serialize once
-            ArraySegment<byte> messageBuffer = GetMessageBuffer(value);
+//            ArraySegment<byte> messageBuffer = GetMessageBuffer(value);
             string filter = GetFilter(excludedSignals);
 
             var tasks = new Task[signals.Count];
@@ -163,7 +165,7 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
             // Send the same data to each connection id
             for (int i = 0; i < signals.Count; i++)
             {
-                var message = new Message(_connectionId, signals[i], messageBuffer);
+                var message = new Message(_connectionId, signals[i], value);
 
                 if (!String.IsNullOrEmpty(filter))
                 {
@@ -189,9 +191,9 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
 
         private Message CreateMessage(string key, object value)
         {
-            ArraySegment<byte> messageBuffer = GetMessageBuffer(value);
+//            ArraySegment<byte> messageBuffer = GetMessageBuffer(value);
 
-            var message = new Message(_connectionId, key, messageBuffer);
+            var message = new Message(_connectionId, key, value);
 
             var command = value as Command;
             if (command != null)
@@ -204,55 +206,62 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
             return message;
         }
 
-        private ArraySegment<byte> GetMessageBuffer(object value)
-        {
-            ArraySegment<byte> messageBuffer;
-            // We can't use "as" like we do for Command since ArraySegment is a struct
-            if (value is ArraySegment<byte>)
-            {
-                // We assume that any ArraySegment<byte> is already JSON serialized
-                messageBuffer = (ArraySegment<byte>)value;
-            }
-            else
-            {
-                messageBuffer = SerializeMessageValueFast(value);
-            }
-            return messageBuffer;
-        }
-
-        private ArraySegment<byte> SerializeMessageValueFast(object value)
-        {
-            ArraySegment<byte> result;
-//            if (value is ClientHubInvocation hubInvocation)
+//        private ArraySegment<byte> GetMessageBuffer(object value)
+//        {
+//            ArraySegment<byte> messageBuffer;
+//            // We can't use "as" like we do for Command since ArraySegment is a struct
+//            if (value is ArraySegment<byte>)
 //            {
-//                result = Utf8Json.JsonSerializer.SerializeUnsafe<ClientHubInvocation>(hubInvocation);
+//                // We assume that any ArraySegment<byte> is already JSON serialized
+//                messageBuffer = (ArraySegment<byte>)value;
 //            }
 //            else
 //            {
-                result = Utf8Json.JsonSerializer.SerializeUnsafe<object>(value);
+//                messageBuffer = SerializeMessageValueFast(value);
 //            }
+//            return messageBuffer;
+//        }
 
-            var ret = new byte[result.Count];
-            Buffer.BlockCopy(result.Array, result.Offset, ret, 0, result.Count);
-            return new ArraySegment<byte>(ret, 0, result.Count);
-        }
+//        static readonly ArrayPool<byte> Pool = ArrayPool<byte>.Shared;
 
-        private ArraySegment<byte> SerializeMessageValue(object value)
-        {
-            using (var writer = new MemoryPoolTextWriter(_pool))
-            {
-                _serializer.Serialize(value, writer);
-                writer.Flush();
+//        private ArraySegment<byte> SerializeMessageValueFast(object value)
+//        {
+////            if (value is ClientHubInvocation hubInvocation)
+////            {
+////                result = Utf8Json.JsonSerializer.SerializeUnsafe<ClientHubInvocation>(hubInvocation);
+////            }
+////            else
+////            {
+//            var buf = Pool.Rent(4000);
+//            var writer = new JsonWriter(buf);
+//            Utf8Json.JsonSerializer.Serialize<object>(ref writer, value);
+//            //            }
+//
+//            //            var ret = new byte[result.Count];
+//            //            Buffer.BlockCopy(result.Array, result.Offset, ret, 0, result.Count);
+//            //            return new ArraySegment<byte>(ret, 0, result.Count);
+//            var resultbuf = writer.GetBuffer();
+//            if (!ReferenceEquals(resultbuf.Array, buf))
+//                Pool.Return(buf);
+//            return resultbuf;
+//        }
 
-                var data = writer.Buffer;
-
-                var buffer = new byte[data.Count];
-
-                Buffer.BlockCopy(data.Array, data.Offset, buffer, 0, data.Count);
-
-                return new ArraySegment<byte>(buffer);
-            }
-        }
+//        private ArraySegment<byte> SerializeMessageValue(object value)
+//        {
+//            using (var writer = new MemoryPoolTextWriter(_pool))
+//            {
+//                _serializer.Serialize(value, writer);
+//                writer.Flush();
+//
+//                var data = writer.Buffer;
+//
+//                var buffer = new byte[data.Count];
+//
+//                Buffer.BlockCopy(data.Array, data.Offset, buffer, 0, data.Count);
+//
+//                return new ArraySegment<byte>(buffer);
+//            }
+//        }
 
         public IDisposable Receive(string messageId, Func<PersistentResponse, object, Task<bool>> callback, int maxMessages, object state)
         {
@@ -294,8 +303,8 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
 
             PopulateResponseState(response);
 
-            _counters.ConnectionMessagesReceivedTotal.IncrementBy(result.TotalCount);
-            _counters.ConnectionMessagesReceivedPerSec.IncrementBy(result.TotalCount);
+//            _counters.ConnectionMessagesReceivedTotal.IncrementBy(result.TotalCount);
+//            _counters.ConnectionMessagesReceivedPerSec.IncrementBy(result.TotalCount);
 
             return response;
         }
@@ -328,7 +337,8 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
                 return;
             }
 
-            var command = connection._serializer.Parse<Command>(message.Value, message.Encoding);
+            //var command = connection._serializer.Parse<Command>(message.Value, message.Encoding);
+            var command = (Command) message.Value;
             connection.ProcessCommand(command);
 
             // Only send the ack if this command is waiting for it

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading.Tasks;
+using Microsoft.AspNet.SignalR.Core;
 
 namespace Microsoft.AspNet.SignalR.Hubs
 {

@@ -3,6 +3,7 @@
 
 using System;
 using System.Globalization;
+using Microsoft.AspNet.SignalR.Core;
 
 namespace Microsoft.AspNet.SignalR.Hubs
 {

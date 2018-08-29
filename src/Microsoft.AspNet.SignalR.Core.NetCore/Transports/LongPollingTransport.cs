@@ -2,9 +2,11 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
+using System.Buffers;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR.Configuration;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Hosting;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Json;
@@ -17,7 +19,6 @@ namespace Microsoft.AspNet.SignalR.Transports
     public class LongPollingTransport : ForeverTransport, ITransport
     {
         private readonly IConfigurationManager _configurationManager;
-        private readonly IPerformanceCounterManager _counters;
         private bool _responseSent;
 
         private static readonly ArraySegment<byte> _keepAlive = new ArraySegment<byte>(new byte[] { 32 });
@@ -26,7 +27,6 @@ namespace Microsoft.AspNet.SignalR.Transports
             : this(context,
                    resolver.Resolve<JsonSerializer>(),
                    resolver.Resolve<ITransportHeartbeat>(),
-                   resolver.Resolve<IPerformanceCounterManager>(),
                    resolver.Resolve<ITraceManager>(),
                    resolver.Resolve<IConfigurationManager>(),
                    resolver.Resolve<IMemoryPool>())
@@ -37,14 +37,12 @@ namespace Microsoft.AspNet.SignalR.Transports
         public LongPollingTransport(HttpContext context,
                                     JsonSerializer jsonSerializer,
                                     ITransportHeartbeat heartbeat,
-                                    IPerformanceCounterManager performanceCounterManager,
                                     ITraceManager traceManager,
                                     IConfigurationManager configurationManager,
                                     IMemoryPool pool)
-            : base(context, jsonSerializer, heartbeat, performanceCounterManager, traceManager, pool)
+            : base(context, jsonSerializer, heartbeat, traceManager, pool)
         {
             _configurationManager = configurationManager;
-            _counters = performanceCounterManager;
         }
 
         public override TimeSpan DisconnectThreshold
@@ -145,7 +143,14 @@ namespace Microsoft.AspNet.SignalR.Transports
             // This overload is only used in response to /connect, /poll and /reconnect requests,
             // so the response will have already been initialized by ProcessMessages.
             var context = new LongPollingTransportContext(this, response);
-            return EnqueueOperation(state => PerformPartialSend(state), context);
+            return EnqueueOperation(state => PerformPartialSend(state), context, state =>
+            {
+                var ctx = (LongPollingTransportContext) state;
+                if (ctx.State is PersistentResponse resp)
+                {
+                    resp.OnMessageDropped();
+                }
+            });
         }
 
         public override Task Send(object value)
@@ -154,17 +159,14 @@ namespace Microsoft.AspNet.SignalR.Transports
 
             // This overload is only used in response to /send requests,
             // so the response will be uninitialized.
-            return EnqueueOperation(state => PerformCompleteSend(state), context);
-        }
-
-        public override void IncrementConnectionsCount()
-        {
-            _counters.ConnectionsCurrentLongPolling.Increment();
-        }
-        
-        public override void DecrementConnectionsCount()
-        {
-            _counters.ConnectionsCurrentLongPolling.Decrement();
+            return EnqueueOperation(state => PerformCompleteSend(state), context, state =>
+            {
+                var ctx = (LongPollingTransportContext)state;
+                if (ctx.State is PersistentResponse resp)
+                {
+                    resp.OnMessageDropped();
+                }
+            });
         }
 
         protected override Task<bool> OnMessageReceived(PersistentResponse response)
@@ -263,29 +265,55 @@ namespace Microsoft.AspNet.SignalR.Transports
             {
                 return TaskAsyncHelper.Empty;
             }
-
-            using (var writer = new BinaryMemoryPoolTextWriter(context.Transport.Pool))
+            
+            if (context.State is IJsonWritable selfSerializer)
             {
-                if (context.Transport.IsJsonp)
+                var srcbuf = ThreadStaticMemoryPool.GetBuffer();
+                var writer = new Utf8Json.JsonWriter(srcbuf);
+                try
                 {
-                    writer.Write(context.Transport.JsonpCallback);
-                    writer.Write("(");
+                    selfSerializer.WriteJson(ref writer);
+                    var buf = writer.GetBuffer();
+                    context.Transport.Context.Response.Body.Write(buf.Array, buf.Offset, buf.Count);
+
+                    var flushtask = context.Transport.Context.Response.Body.FlushAsync();
+//                    flushtask.ContinueWith((t, s) => BufferPool.Return((byte[]) s), srcbuf);
+                    return flushtask;
+                    //                        context.Transport.TraceOutgoingMessage(writer.Buffer);
                 }
-
-                context.Transport.JsonSerializer.Serialize(context.State, writer);
-
-                if (context.Transport.IsJsonp)
+                catch (Exception ex)
                 {
-                    writer.Write(");");
+                    // OnError will close the socket in the event of a JSON serialization or flush error.
+                    // The client should then immediately reconnect instead of simply missing keep-alives.
+                    context.Transport.OnError(ex);
+                    throw;
                 }
+            }
+            else
+            {
+                using (var writer = new BinaryMemoryPoolTextWriter(context.Transport.Pool))
+                {
+                    if (context.Transport.IsJsonp)
+                    {
+                        writer.Write(context.Transport.JsonpCallback);
+                        writer.Write("(");
+                    }
 
-                writer.Flush();
+                    context.Transport.JsonSerializer.Serialize(context.State, writer);
 
-                var buf = writer.Buffer;
-                context.Transport.Context.Response.Body.Write(buf.Array, buf.Offset, buf.Count);
+                    if (context.Transport.IsJsonp)
+                    {
+                        writer.Write(");");
+                    }
+
+                    writer.Flush();
+
+                    var buf = writer.Buffer;
+                    context.Transport.Context.Response.Body.Write(buf.Array, buf.Offset, buf.Count);
+                    return context.Transport.Context.Response.Body.FlushAsync();
+                }
             }
 
-            return context.Transport.Context.Response.Body.FlushAsync();
         }
 
         private static Task PerformCompleteSend(object state)

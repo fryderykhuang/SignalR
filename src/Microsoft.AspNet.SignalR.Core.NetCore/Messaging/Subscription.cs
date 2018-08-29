@@ -15,7 +15,6 @@ namespace Microsoft.AspNet.SignalR.Messaging
     {
         private readonly Func<MessageResult, object, Task<bool>> _callback;
         private readonly object _callbackState;
-        private readonly IPerformanceCounterManager _counters;
 
         private int _state;
         private int _subscriptionState;
@@ -36,7 +35,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
 
         public IDisposable Disposable { get; set; }
 
-        protected Subscription(string identity, IList<string> eventKeys, Func<MessageResult, object, Task<bool>> callback, int maxMessages, IPerformanceCounterManager counters, object state)
+        protected Subscription(string identity, IList<string> eventKeys, Func<MessageResult, object, Task<bool>> callback, int maxMessages, object state)
         {
             if (String.IsNullOrEmpty(identity))
             {
@@ -58,21 +57,11 @@ namespace Microsoft.AspNet.SignalR.Messaging
                 throw new ArgumentOutOfRangeException("maxMessages");
             }
 
-            if (counters == null)
-            {
-                throw new ArgumentNullException("counters");
-            }
-
             Identity = identity;
             _callback = callback;
             EventKeys = eventKeys;
             MaxMessages = maxMessages;
-            _counters = counters;
             _callbackState = state;
-
-            _counters.MessageBusSubscribersTotal.Increment();
-            _counters.MessageBusSubscribersCurrent.Increment();
-            _counters.MessageBusSubscribersPerSec.Increment();
         }
 
         public virtual Task<bool> Invoke(MessageResult result)
@@ -98,8 +87,8 @@ namespace Microsoft.AspNet.SignalR.Messaging
 
             beforeInvoke(this, state);
 
-            _counters.MessageBusMessagesReceivedTotal.IncrementBy(result.TotalCount);
-            _counters.MessageBusMessagesReceivedPerSec.IncrementBy(result.TotalCount);
+//            _counters.MessageBusMessagesReceivedTotal.IncrementBy(result.TotalCount);
+//            _counters.MessageBusMessagesReceivedPerSec.IncrementBy(result.TotalCount);
 
             try
             {
@@ -214,8 +203,6 @@ namespace Microsoft.AspNet.SignalR.Messaging
                         if (state != SubscriptionState.Disposed)
                         {
                             // Only decrement if we're not disposed already
-                            _counters.MessageBusSubscribersCurrent.Decrement();
-                            _counters.MessageBusSubscribersPerSec.Decrement();
                         }
 
                         // Raise the disposed callback
@@ -237,7 +224,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
             Dispose(true);
         }
 
-        public abstract void WriteCursor(TextWriter textWriter);
+        public abstract void WriteCursor(ref Utf8Json.JsonWriter textWriter);
 
         private bool AddEventCore(string key)
         {

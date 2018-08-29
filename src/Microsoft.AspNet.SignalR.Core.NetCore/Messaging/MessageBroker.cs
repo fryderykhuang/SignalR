@@ -14,14 +14,14 @@ namespace Microsoft.AspNet.SignalR.Messaging
     /// </summary>
     public class MessageBroker : IDisposable
     {
-        private readonly IPerformanceCounterManager _counters;
+//        private readonly IPerformanceCounterManager _counters;
 
         // Determines if the broker was disposed and should stop doing all work.
         private volatile bool _disposed;
 
-        public MessageBroker(IPerformanceCounterManager performanceCounterManager)
+        public MessageBroker()
         {
-            _counters = performanceCounterManager;
+//            _counters = performanceCounterManager;
         }
 
         public TraceSource Trace
@@ -58,11 +58,11 @@ namespace Microsoft.AspNet.SignalR.Messaging
             {
                 var context = (WorkContext)state;
 
-                context.Broker._counters.MessageBusAllocatedWorkers.Increment();
+//                context.Broker._counters.MessageBusAllocatedWorkers.Increment();
 
                 DoWork(context);
 
-                context.Broker._counters.MessageBusAllocatedWorkers.Decrement();
+//                context.Broker._counters.MessageBusAllocatedWorkers.Decrement();
             }, 
             workContext);
         }
@@ -73,7 +73,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
             {
                 try
                 {
-                    context.Broker._counters.MessageBusBusyWorkers.Increment();
+//                    context.Broker._counters.MessageBusBusyWorkers.Increment();
 
                     await context.Subscription.Work();
                 }
@@ -82,10 +82,10 @@ namespace Microsoft.AspNet.SignalR.Messaging
                     context.Broker.Trace.TraceError("Failed to process work - " + ex.GetBaseException());
                     break;
                 }
-                finally
-                {
-                    context.Broker._counters.MessageBusBusyWorkers.Decrement();
-                }
+//                finally
+//                {
+//                    context.Broker._counters.MessageBusBusyWorkers.Decrement();
+//                }
             }
             while (context.Subscription.UnsetQueued() && !context.Broker._disposed);
         }

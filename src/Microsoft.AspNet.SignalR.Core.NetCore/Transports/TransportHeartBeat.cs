@@ -9,6 +9,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using Microsoft.AspNet.SignalR.Configuration;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Tracing;
 
@@ -23,7 +24,6 @@ namespace Microsoft.AspNet.SignalR.Transports
         private readonly Timer _timer;
         private readonly IConfigurationManager _configurationManager;
         private readonly TraceSource _trace;
-        private readonly IPerformanceCounterManager _counters;
         private readonly object _counterLock = new object();
 
         private int _running;
@@ -36,7 +36,6 @@ namespace Microsoft.AspNet.SignalR.Transports
         public TransportHeartbeat(IDependencyResolver resolver)
         {
             _configurationManager = resolver.Resolve<IConfigurationManager>();
-            _counters = resolver.Resolve<IPerformanceCounterManager>();
 
             var traceManager = resolver.Resolve<ITraceManager>();
             _trace = traceManager["SignalR.Transports.TransportHeartBeat"];
@@ -87,22 +86,12 @@ namespace Microsoft.AspNet.SignalR.Transports
                 isNewConnection = false;
                 oldConnection = old.Connection;
 
-                // If the old connection was on a different transport, we need to transfer the count
-                old.Connection.DecrementConnectionsCount();
-                newMetadata.Connection.IncrementConnectionsCount();
-
                 return newMetadata;
             });
 
             if (isNewConnection)
             {
                 Trace.TraceInformation("Connection {0} is New.", connection.ConnectionId);
-                connection.IncrementConnectionsCount();
-            }
-
-            lock (_counterLock)
-            {
-                _counters.ConnectionsCurrent.RawValue = _connections.Count;
             }
 
             // Set the initial connection time
@@ -128,12 +117,6 @@ namespace Microsoft.AspNet.SignalR.Transports
             ConnectionMetadata metadata;
             if (_connections.TryRemove(connection.ConnectionId, out metadata))
             {
-                connection.DecrementConnectionsCount();
-                lock (_counterLock)
-                {
-                    _counters.ConnectionsCurrent.RawValue = _connections.Count;
-                }
-
                 connection.ApplyState(TransportConnectionStates.Removed);
 
                 Trace.TraceInformation("Removing connection {0}", connection.ConnectionId);
@@ -176,11 +159,6 @@ namespace Microsoft.AspNet.SignalR.Transports
             {
                 Trace.TraceEvent(TraceEventType.Verbose, 0, "Timer handler took longer than current interval");
                 return;
-            }
-
-            lock (_counterLock)
-            {
-                _counters.ConnectionsCurrent.RawValue = _connections.Count;
             }
 
             try

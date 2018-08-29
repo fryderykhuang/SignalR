@@ -9,10 +9,7 @@ using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
-
-#if CLIENT
-using Microsoft.AspNet.SignalR.Client.Infrastructure;
-#endif
+using Microsoft.AspNet.SignalR.Core;
 
 namespace Microsoft.AspNet.SignalR.Infrastructure
 {
@@ -26,12 +23,6 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
         private volatile bool _drained;
         private readonly int? _maxSize;
         private long _size;
-
-#if CLIENT
-        // This is the TaskQueueMonitor in the .NET client that watches for
-        // suspected deadlocks in user code.
-        private readonly ITaskMonitor _taskMonitor;
-#endif
 
         public TaskQueue()
             : this(TaskAsyncHelper.Empty)
@@ -50,15 +41,6 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
             _maxSize = maxSize;
         }
 
-
-#if CLIENT
-        public TaskQueue(Task initialTask, ITaskMonitor taskMonitor)
-            : this(initialTask)
-        {
-            _taskMonitor = taskMonitor;
-        }
-#endif
-
 #if !CLIENT
         [SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode", Justification = "This is shared code.")]
         public IPerformanceCounter QueueSizeCounter { get; set; }
@@ -74,7 +56,7 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
         }
 
         [SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode", Justification = "This is shared code")]
-        public Task Enqueue(Func<object, Task> taskFunc, object state)
+        public Task Enqueue(Func<object, Task> taskFunc, object state, Action<object> msgDroppedCb = null)
         {
             // Lock the object for as short amount of time as possible
             lock (_lockObj)
@@ -92,15 +74,16 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
                         Interlocked.Decrement(ref _size);
 
                         // We failed to enqueue because the size limit was reached
+                        msgDroppedCb?.Invoke(state);
                         return null;
                     }
 
 #if !CLIENT
-                    var counter = QueueSizeCounter;
-                    if (counter != null)
-                    {
-                        counter.Increment();
-                    }
+//                    var counter = QueueSizeCounter;
+//                    if (counter != null)
+//                    {
+//                        counter.Increment();
+//                    }
 #endif
                 }
 
@@ -113,45 +96,31 @@ namespace Microsoft.AspNet.SignalR.Infrastructure
 
         private Task InvokeNext(Func<object, Task> next, object nextState)
         {
-#if CLIENT
-            if (_taskMonitor != null)
-            {
-                _taskMonitor.TaskStarted();
-            }
-#endif
-
             return next(nextState).Finally(s => ((TaskQueue)s).Dequeue(), this);
         }
 
         private void Dequeue()
         {
-#if CLIENT
-            if (_taskMonitor != null)
-            {
-                _taskMonitor.TaskCompleted();
-            }
-#endif
-
             if (_maxSize != null)
             {
                 // Decrement the number of items left in the queue
                 Interlocked.Decrement(ref _size);
 
 #if !CLIENT
-                var counter = QueueSizeCounter;
-                if (counter != null)
-                {
-                    counter.Decrement();
-                }
+//                var counter = QueueSizeCounter;
+//                if (counter != null)
+//                {
+//                    counter.Decrement();
+//                }
 #endif
             }
         }
 
-        [SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode", Justification = "This is shared code")]
-        public Task Enqueue(Func<Task> taskFunc)
-        {
-            return Enqueue(state => ((Func<Task>)state).Invoke(), taskFunc);
-        }
+//        [SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode", Justification = "This is shared code")]
+//        public Task Enqueue(Func<Task> taskFunc)
+//        {
+//            return Enqueue(state => ((Func<Task>)state).Invoke(), taskFunc);
+//        }
 
         [SuppressMessage("Microsoft.Performance", "CA1811:AvoidUncalledPrivateCode", Justification = "This is shared code")]
         public Task Drain()

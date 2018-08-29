@@ -12,6 +12,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Hosting;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Json;
@@ -39,7 +40,6 @@ namespace Microsoft.AspNet.SignalR.Hubs
         private JsonSerializer _serializer;
         private IParameterResolver _binder;
         private IHubPipelineInvoker _pipelineInvoker;
-        private IPerformanceCounterManager _counters;
         private bool _isDebuggingEnabled;
 
         private static readonly MethodInfo _continueWithMethod = typeof(HubDispatcher).GetMethod("ContinueWith", BindingFlags.NonPublic | BindingFlags.Static);
@@ -90,7 +90,6 @@ namespace Microsoft.AspNet.SignalR.Hubs
             _requestParser = resolver.Resolve<IHubRequestParser>();
             _serializer = resolver.Resolve<JsonSerializer>();
             _pipelineInvoker = resolver.Resolve<IHubPipelineInvoker>();
-            _counters = resolver.Resolve<IPerformanceCounterManager>();
 
             base.Initialize(resolver);
         }
@@ -122,11 +121,7 @@ namespace Microsoft.AspNet.SignalR.Hubs
                         }
 
                         // Try to find the associated hub type
-                        HubDescriptor hubDescriptor = _manager.EnsureHub(hubInfo.Name,
-                                                        _counters.ErrorsHubResolutionTotal,
-                                                        _counters.ErrorsHubResolutionPerSec,
-                                                        _counters.ErrorsAllTotal,
-                                                        _counters.ErrorsAllPerSec);
+                        HubDescriptor hubDescriptor = _manager.EnsureHub(hubInfo.Name);
 
                         if (_pipelineInvoker.AuthorizeConnect(hubDescriptor, request))
                         {
@@ -153,11 +148,7 @@ namespace Microsoft.AspNet.SignalR.Hubs
             HubRequest hubRequest = _requestParser.Parse(data, _serializer);
 
             // Create the hub
-            HubDescriptor descriptor = _manager.EnsureHub(hubRequest.Hub,
-                _counters.ErrorsHubInvocationTotal,
-                _counters.ErrorsHubInvocationPerSec,
-                _counters.ErrorsAllTotal,
-                _counters.ErrorsAllPerSec);
+            HubDescriptor descriptor = _manager.EnsureHub(hubRequest.Hub);
 
             IJsonValue[] parameterValues = hubRequest.ParameterValues;
 
@@ -180,8 +171,8 @@ namespace Microsoft.AspNet.SignalR.Hubs
             var tracker = new StateChangeTracker(hubRequest.State);
             var hub = CreateHub(request, descriptor, connectionId, tracker, throwIfFailedToCreate: true);
 
-            return InvokeHubPipeline(hub, parameterValues, methodDescriptor, hubRequest, tracker)
-                .ContinueWithPreservedCulture(task => hub.Dispose(), TaskContinuationOptions.ExecuteSynchronously);
+            return InvokeHubPipeline(hub, parameterValues, methodDescriptor, hubRequest, tracker);
+//                .ContinueWithPreservedCulture(task => hub.Dispose(), TaskContinuationOptions.ExecuteSynchronously);
         }
 
         [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes", Justification = "Exceptions are flown to the caller.")]
@@ -489,10 +480,10 @@ namespace Microsoft.AspNet.SignalR.Hubs
 
         private static void DisposeHubs(IEnumerable<IHub> hubs)
         {
-            foreach (var hub in hubs)
-            {
-                hub.Dispose();
-            }
+//            foreach (var hub in hubs)
+//            {
+//                hub.Dispose();
+//            }
         }
 
         private Task SendProgressUpdate(string connectionId, StateChangeTracker tracker, object value, HubRequest request)
@@ -520,11 +511,6 @@ namespace Microsoft.AspNet.SignalR.Hubs
 
             if (error != null)
             {
-                _counters.ErrorsHubInvocationTotal.Increment();
-                _counters.ErrorsHubInvocationPerSec.Increment();
-                _counters.ErrorsAllTotal.Increment();
-                _counters.ErrorsAllPerSec.Increment();
-
                 var hubError = error.InnerException as HubException;
 
                 if (_enableDetailedErrors || hubError != null)

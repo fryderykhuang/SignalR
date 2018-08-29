@@ -7,6 +7,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNet.SignalR.Hosting;
 using Microsoft.AspNet.SignalR.Infrastructure;
 using Microsoft.AspNet.SignalR.Tracing;
@@ -23,7 +24,6 @@ namespace Microsoft.AspNet.SignalR.Transports
         private TraceSource _trace;
 
         private int _timedOut;
-        private readonly IPerformanceCounterManager _counters;
         private int _ended;
         private TransportConnectionStates _state;
 
@@ -48,7 +48,7 @@ namespace Microsoft.AspNet.SignalR.Transports
 
         internal HttpRequestLifeTime _requestLifeTime;
 
-        protected TransportDisconnectBase(HttpContext context, ITransportHeartbeat heartbeat, IPerformanceCounterManager performanceCounterManager, ITraceManager traceManager)
+        protected TransportDisconnectBase(HttpContext context, ITransportHeartbeat heartbeat, ITraceManager traceManager)
         {
             if (context == null)
             {
@@ -60,11 +60,6 @@ namespace Microsoft.AspNet.SignalR.Transports
                 throw new ArgumentNullException("heartbeat");
             }
 
-            if (performanceCounterManager == null)
-            {
-                throw new ArgumentNullException("performanceCounterManager");
-            }
-
             if (traceManager == null)
             {
                 throw new ArgumentNullException("traceManager");
@@ -72,7 +67,6 @@ namespace Microsoft.AspNet.SignalR.Transports
 
             _context = context;
             _heartbeat = heartbeat;
-            _counters = performanceCounterManager;
 
             // Queue to protect against overlapping writes to the underlying response stream
             WriteQueue = new TaskQueue();
@@ -246,18 +240,6 @@ namespace Microsoft.AspNet.SignalR.Transports
 //            get { return _context.Request.Url; }
 //        }
 
-        protected void IncrementErrors()
-        {
-            _counters.ErrorsTransportTotal.Increment();
-            _counters.ErrorsTransportPerSec.Increment();
-            _counters.ErrorsAllTotal.Increment();
-            _counters.ErrorsAllPerSec.Increment();
-        }
-
-        public abstract void IncrementConnectionsCount();
-
-        public abstract void DecrementConnectionsCount();
-
         public Task Disconnect()
         {
             return Abort(clean: false);
@@ -293,12 +275,7 @@ namespace Microsoft.AspNet.SignalR.Transports
 
             // Ensure delegate continues to use the C# Compiler static delegate caching optimization.
             return disconnectTask
-                .Catch((ex, state) => OnDisconnectError(ex, state), state: Trace, traceSource: Trace)
-                .Finally(state =>
-                {
-                    var counters = (IPerformanceCounterManager)state;
-                    counters.ConnectionsDisconnected.Increment();
-                }, _counters);
+                .Catch((ex, state) => OnDisconnectError(ex, state), state: Trace, traceSource: Trace);
         }
 
         public void ApplyState(TransportConnectionStates states)
@@ -357,7 +334,8 @@ namespace Microsoft.AspNet.SignalR.Transports
             return EnqueueOperation(state => ((Func<Task>)state).Invoke(), writeAsync);
         }
 
-        protected virtual internal Task EnqueueOperation(Func<object, Task> writeAsync, object state)
+        protected virtual internal Task EnqueueOperation(Func<object, Task> writeAsync, object state,
+            Action<object> msgDroppedCb = null)
         {
             if (!IsAlive)
             {
@@ -365,7 +343,7 @@ namespace Microsoft.AspNet.SignalR.Transports
             }
 
             // Only enqueue new writes if the connection is alive
-            Task writeTask = WriteQueue.Enqueue(writeAsync, state);
+            Task writeTask = WriteQueue.Enqueue(writeAsync, state, msgDroppedCb);
             _lastWriteTask = writeTask;
 
             return writeTask;

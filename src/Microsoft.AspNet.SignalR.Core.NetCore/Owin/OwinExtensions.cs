@@ -18,6 +18,7 @@ using Microsoft.AspNet.SignalR.Tracing;
 //using Microsoft.Owin.Security.DataProtection;
 //using Microsoft.Owin.Extensions;
 using System.Globalization;
+using Microsoft.AspNet.SignalR.Core;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 
