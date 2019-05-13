@@ -55,7 +55,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
         private readonly Func<string, Topic> _createTopic;
         private readonly Action<ISubscriber, string> _addEvent;
         private readonly Action<ISubscriber, string> _removeEvent;
-        private readonly Action<object> _disposeSubscription;
+        private readonly Func<object, Task> _disposeSubscription;
 
         /// <summary>
         /// 
@@ -214,7 +214,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
             subscriber.WriteCursor = subscription.WriteCursor;
 
             var subscriptionState = new SubscriptionState(subscriber);
-            var disposable = new DisposableAction(_disposeSubscription, subscriptionState);
+            var disposable = new DisposableAsyncAction(_disposeSubscription, subscriptionState);
 
             // When the subscription itself is disposed then dispose it
             subscription.Disposable = disposable;
@@ -516,7 +516,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
         }
 
         [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes", Justification = "Failure to invoke the callback should be ignored")]
-        private void DisposeSubscription(object state)
+        private async Task DisposeSubscription(object state)
         {
             var subscriptionState = (SubscriptionState)state;
             var subscriber = subscriptionState.Subscriber;
@@ -527,7 +527,7 @@ namespace Microsoft.AspNet.SignalR.Messaging
             try
             {
                 // Invoke the terminal callback
-                subscriber.Subscription.Invoke(MessageResult.TerminalMessage).Wait();
+                await subscriber.Subscription.Invoke(MessageResult.TerminalMessage);
             }
             catch
             {
