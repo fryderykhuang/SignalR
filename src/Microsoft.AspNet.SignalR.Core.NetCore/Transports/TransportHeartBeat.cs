@@ -152,6 +152,13 @@ namespace Microsoft.AspNet.SignalR.Transports
             return _connections.Values.Select(metadata => metadata.Connection).ToList();
         }
 
+        public ConnectionMetadata GetConnection(string connectionId)
+        {
+            if (_connections.TryGetValue(connectionId, out var conn))
+                return conn;
+            return null;
+        }
+
         [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes", Justification = "We're tracing exceptions and don't want to crash the process.")]
         private void Beat(object state)
         {
@@ -317,24 +324,24 @@ namespace Microsoft.AspNet.SignalR.Transports
         {
             ((TraceSource)state).TraceEvent(TraceEventType.Error, 0, "Failed to send keep alive: " + ex.GetBaseException());
         }
+    }
 
-        private class ConnectionMetadata
+    public class ConnectionMetadata
+    {
+        public ConnectionMetadata(ITrackingConnection connection)
         {
-            public ConnectionMetadata(ITrackingConnection connection)
-            {
-                Connection = connection;
-                Initial = DateTime.UtcNow;
-                LastMarked = DateTime.UtcNow;
-            }
-
-            // The connection instance
-            public ITrackingConnection Connection { get; set; }
-
-            // The last time the connection had any activity
-            public DateTime LastMarked { get; set; }
-
-            // The initial connection time of the connection
-            public DateTime Initial { get; set; }
+            Connection = connection;
+            Initial = DateTime.UtcNow;
+            LastMarked = DateTime.UtcNow;
         }
+
+        // The connection instance
+        public ITrackingConnection Connection { get; set; }
+
+        // The last time the connection had any activity
+        public DateTime LastMarked { get; set; }
+
+        // The initial connection time of the connection
+        public DateTime Initial { get; set; }
     }
 }
