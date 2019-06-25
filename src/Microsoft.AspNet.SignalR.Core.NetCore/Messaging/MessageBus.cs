@@ -128,6 +128,8 @@ namespace Microsoft.AspNet.SignalR.Messaging
 
         protected internal TopicLookup Topics { get; private set; }
 
+        public long DroppedMessageCount => Topics.DroppedMessageCount;
+
         /// <summary>
         /// Publishes a new message to the specified event on the bus.
         /// </summary>
