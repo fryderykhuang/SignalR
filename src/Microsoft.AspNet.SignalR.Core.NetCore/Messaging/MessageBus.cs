@@ -155,6 +155,32 @@ namespace Microsoft.AspNet.SignalR.Messaging
             return TaskAsyncHelper.Empty;
         }
 
+
+        public Task Publish(Message message, Action<Message> onMessageDropped)
+        {
+            if (message == null)
+            {
+                throw new ArgumentNullException("message");
+            }
+
+            Topic topic;
+            if (Topics.TryGetValue(message.Key, out topic))
+            {
+                topic.Store.Add(message);
+                ScheduleTopic(topic);
+            }
+            else
+            {
+                onMessageDropped?.Invoke(message);
+            }
+
+            //            Counters.MessageBusMessagesPublishedTotal.Increment();
+            //            Counters.MessageBusMessagesPublishedPerSec.Increment();
+
+
+            return TaskAsyncHelper.Empty;
+        }
+
         protected ulong Save(Message message)
         {
             if (message == null)
