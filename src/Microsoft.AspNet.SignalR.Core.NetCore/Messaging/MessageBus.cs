@@ -43,12 +43,12 @@ namespace Microsoft.AspNet.SignalR.Messaging
         private readonly TimeSpan _topicTtl;
 
         // For unit testing
-        internal Action<string, Topic> BeforeTopicGarbageCollected;
-        internal Action<string, Topic> AfterTopicGarbageCollected;
-        internal Action<string, Topic> BeforeTopicMarked;
-        internal Action<string> BeforeTopicCreated;
-        internal Action<string, Topic> AfterTopicMarkedSuccessfully;
-        internal Action<string, Topic, int> AfterTopicMarked;
+        internal Action<string, Topic> BeforeTopicGarbageCollected = null;
+        internal Action<string, Topic> AfterTopicGarbageCollected = null;
+        internal Action<string, Topic> BeforeTopicMarked = null;
+        internal Action<string> BeforeTopicCreated = null;
+        internal Action<string, Topic> AfterTopicMarkedSuccessfully = null;
+        internal Action<string, Topic, int> AfterTopicMarked = null;
 
         private const int DefaultMaxTopicsWithNoSubscriptions = 1000;
 
